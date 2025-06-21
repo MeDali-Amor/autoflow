@@ -1,15 +1,15 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { NodePalette } from "./NodePalette";
-import { Node } from "./Node";
-import type { Edge, NodeData } from "./types";
-import type { NodeType } from "./node-types";
 import { v4 as uuid } from "uuid";
 import { buildGraphInstance, type GraphInstance } from "../engine/instance";
+import type { NodeKind } from "../engine/types";
+import { Node } from "./Node";
+import { NodePalette, nodeVariantsMap } from "./NodePalette";
+import type { Edge, NodeData } from "./types";
 
 export function Canvas() {
-    const [nodes, setNodes] = useState<NodeData[]>([]);
-    const [draggedType, setDraggedType] = useState<NodeType | null>(null);
+    const [nodes, setNodes] = useState<NodeData<number>[]>([]);
+    const [draggedType, setDraggedType] = useState<NodeKind | null>(null);
     const [edges, setEdges] = useState<Edge[]>([]);
     const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -34,7 +34,8 @@ export function Canvas() {
                 label: `${draggedType} Node`,
                 x,
                 y,
-            },
+                config: nodeVariantsMap[draggedType].config ?? undefined,
+            } as NodeData<number>,
         ]);
 
         setDraggedType(null);
@@ -70,7 +71,7 @@ export function Canvas() {
             setConnectingFrom(null);
         }
     };
-    const graphRef = useRef<GraphInstance | null>(null);
+    const graphRef = useRef<GraphInstance<number> | null>(null);
 
     useEffect(() => {
         graphRef.current?.destroy();
@@ -139,9 +140,9 @@ export function Canvas() {
                 </svg>
                 {nodes.map((node) => (
                     <Node
-                        graphRef={graphRef}
                         key={node.id}
                         node={node}
+                        trigger={() => graphRef.current?.trigger(node.id, 1)}
                         onMove={(id, x, y) => {
                             setNodes((prev) =>
                                 prev.map((n) =>
@@ -157,17 +158,3 @@ export function Canvas() {
         </div>
     );
 }
-
-// const useGraph = ({ nodes, edges }: { nodes: NodeData[]; edges: Edge[] }) => {
-//     const graphRef = useRef<GraphInstance | null>(null);
-
-//     useEffect(() => {
-//         if (graphRef.current) {
-//             graphRef.current.destroy();
-//         }
-//         graphRef.current = buildGraphInstance(nodes, edges);
-
-//         return () => graphRef.current?.destroy();
-//     }, [nodes, edges]);
-//     return graphRef;
-// };

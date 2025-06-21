@@ -1,73 +1,31 @@
-import type { NodeType } from "../components/node-types";
 import type { Edge, NodeData } from "../components/types";
 import { connectGraphConnection } from "./graph";
-import {
-    createDebugNode,
-    createFilterNode,
-    createMapNode,
-    createScanNode,
-    createTrigger,
-} from "./nodes";
 import { createObservable, type Subject } from "./reactive";
+import { createNodeStream } from "./stream";
 import type { NodeSpec } from "./types";
 
-type Builder = (node: NodeData, input$: Subject<number>) => NodeSpec;
-
-const builders: Record<NodeType, Builder> = {
-    Trigger: () => {
-        const { stream, trigger } = createTrigger<number>();
-        return { kind: "Trigger", stream, trigger };
-    },
-    Map: (_, input$) => ({
-        kind: "Map",
-        stream: createMapNode(input$, (x) => x * 2),
-    }),
-    Scan: (_, input$) => ({
-        kind: "Scan",
-        stream: createScanNode(input$, (acc, v) => acc + v, 0),
-    }),
-    Filter: (_, input$) => ({
-        kind: "Filter",
-        stream: createFilterNode(input$, (x) => x > 10),
-    }),
-    Log: (node, input$) => {
-        return {
-            kind: "Log",
-            stream: createDebugNode(input$, node.label),
-        };
-    },
-};
-
-export function createNodeStream(
-    node: NodeData,
-    input$: Subject<number>
-): NodeSpec {
-    return builders[node.type](node, input$);
-}
-
-export interface GraphInstance {
-    trigger: (nodeId: string, value: number) => void;
+export interface GraphInstance<T> {
+    trigger: (nodeId: string, value: T) => void;
     destroy: () => void;
 }
 
-export function buildGraphInstance(
-    nodes: NodeData[],
+export function buildGraphInstance<T>(
+    nodes: NodeData<T>[],
     edges: Edge[]
-): GraphInstance {
-    const inputMap = new Map<string, Subject<number>>(
-        nodes.map((n) => [n.id, createObservable<number>()])
-    );
+): GraphInstance<T> {
+    const inputMap = new Map<string, Subject<T>>();
+    const streamMap = new Map<string, NodeSpec<T>>();
 
-    const streamMap = new Map<string, NodeSpec>(
-        nodes.map((node) => {
-            const input$ = inputMap.get(node.id)!;
-            return [node.id, createNodeStream(node, input$)];
-        })
-    );
+    for (const node of nodes) {
+        const input$ = createObservable<T>();
+        inputMap.set(node.id, input$);
+        const spec = createNodeStream<T>(node, input$);
+        streamMap.set(node.id, spec);
+    }
 
     const connect = (
-        from?: NodeSpec,
-        to?: Subject<number>
+        from?: NodeSpec<T>,
+        to?: Subject<T>
     ): (() => void) | null => {
         if (!from || !to) return null;
         return connectGraphConnection(from.stream, to.emit, (x) => x);
@@ -75,25 +33,23 @@ export function buildGraphInstance(
 
     const cleanups = edges
         .map(({ from, to }) => connect(streamMap.get(from), inputMap.get(to)))
-        .filter((fn): fn is () => void => !!fn);
+        .filter((x): x is () => void => !!x);
 
-    // ✅ Force side-effects (tap) to run by subscribing to Log nodes
+    // Force subscriptions for "Log" nodes
     for (const node of nodes) {
         const spec = streamMap.get(node.id);
         if (spec?.kind === "Log") {
-            spec.stream.subscribe(() => {
-                // Intentionally empty — needed to activate tap()
-            });
+            spec.stream.subscribe(() => {});
         }
     }
 
     return {
-        trigger: (nodeId, value) => {
-            const node = streamMap.get(nodeId);
+        trigger: (id, value) => {
+            const node = streamMap.get(id);
             if (node?.kind === "Trigger") {
-                node.trigger(value);
+                node.trigger?.(value);
             }
         },
-        destroy: () => cleanups.forEach((dispose) => dispose()),
+        destroy: () => cleanups.forEach((fn) => fn()),
     };
 }

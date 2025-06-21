@@ -1,22 +1,21 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { NodeData } from "./types";
-import type { GraphInstance } from "../engine/instance";
 
-interface NodeProps {
-    node: NodeData;
+interface NodeProps<T> {
+    node: NodeData<T>;
     onMove: (id: string, x: number, y: number) => void;
     onPortConnectStart: (nodeId: string, port: "output") => void;
     onPortConnectEnd: (nodeId: string, port: "input") => void;
-    graphRef: React.RefObject<GraphInstance | null>;
+    trigger?: () => void;
 }
 
-export function Node({
+export function Node<T>({
     node,
     onMove,
     onPortConnectEnd,
     onPortConnectStart,
-    graphRef,
-}: NodeProps) {
+    trigger,
+}: NodeProps<T>) {
     const [dragging, setDragging] = useState(false);
     const offset = useRef({ x: 0, y: 0 });
 
@@ -64,7 +63,7 @@ export function Node({
                 <button
                     onClick={() => {
                         // const val = Math.floor(Math.random() * 100);
-                        graphRef.current?.trigger(node.id, 1);
+                        trigger?.();
                     }}
                     className="mt-2 text-xs text-white bg-blue-500 px-2 py-1 rounded"
                 >
