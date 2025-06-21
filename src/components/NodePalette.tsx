@@ -1,5 +1,6 @@
 import type { NodeKind } from "../engine/types";
 import type { NodeType } from "./types";
+import { nodeVariantsMap } from "./utils";
 
 interface PaletteItemProps<T> {
     type: NodeKind;
@@ -39,27 +40,3 @@ export function NodePalette({
         </div>
     );
 }
-
-export const nodeVariantsMap = {
-    Trigger: { type: "Trigger", config: undefined },
-    Map: {
-        type: "Map",
-        config: {
-            fn: (x: number) => x * 10,
-        },
-    },
-    Scan: {
-        type: "Scan",
-        config: {
-            reducer: (acc: number, x: number) => acc + x,
-            seed: 0,
-        },
-    },
-    Filter: {
-        type: "Filter",
-        config: {
-            predicate: (x: number) => x > 40,
-        },
-    },
-    Log: { type: "Log", config: undefined },
-};

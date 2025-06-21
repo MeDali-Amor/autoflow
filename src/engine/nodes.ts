@@ -1,4 +1,5 @@
 import {
+    combineLatest,
     createObservable,
     filter,
     map,
@@ -41,4 +42,29 @@ export function createDebugNode<T>(
     label: string = "Debug"
 ): Observable<T> {
     return tap(input$, (val) => console.log(`[DEBUG NODE ${label}]`, val));
+}
+
+export function createMergeNode<T>(
+    inputA$: Observable<T>,
+    inputB$: Observable<T>
+): Observable<T> {
+    return {
+        subscribe: (subscriber) => {
+            const unsubA = inputA$.subscribe(subscriber);
+            const unsubB = inputB$.subscribe(subscriber);
+
+            return () => {
+                unsubA();
+                unsubB();
+            };
+        },
+    };
+}
+
+export function createCombineNode<A, B, R>(
+    inputA$: Observable<A>,
+    inputB$: Observable<B>,
+    combiner: (a: A, b: B) => R
+): Observable<R> {
+    return combineLatest(inputA$, inputB$, combiner);
 }

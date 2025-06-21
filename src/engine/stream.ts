@@ -6,12 +6,13 @@ import {
     createScanNode,
     createTrigger,
 } from "./nodes";
-import type { Subject } from "./reactive";
+import { merge, type Subject } from "./reactive";
 import type { NodeSpec } from "./types";
 
 export function createNodeStream<T>(
     node: NodeData<T>,
-    input$: Subject<T>
+    input$: Subject<T>,
+    extraInputs: Subject<T>[] = []
 ): NodeSpec<T> {
     const config = node.config;
 
@@ -35,6 +36,14 @@ export function createNodeStream<T>(
             return {
                 kind: "Scan",
                 stream: createScanNode(input$, reducer, seed),
+            };
+        }
+        case "Merge": {
+            const other$ = extraInputs[0];
+            if (!other$) throw new Error("Merge node requires a second input");
+            return {
+                kind: "Merge",
+                stream: merge(input$, other$),
             };
         }
 

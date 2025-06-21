@@ -4,8 +4,8 @@ import type { NodeData } from "./types";
 interface NodeProps<T> {
     node: NodeData<T>;
     onMove: (id: string, x: number, y: number) => void;
-    onPortConnectStart: (nodeId: string, port: "output") => void;
-    onPortConnectEnd: (nodeId: string, port: "input") => void;
+    onPortConnectStart: (nodeId: string, portId: string) => void;
+    onPortConnectEnd: (nodeId: string, portId: string) => void;
     trigger?: () => void;
 }
 
@@ -71,7 +71,32 @@ export function Node<T>({
                 </button>
             )}
             {node.label}
-            <div
+            {node.inputs?.map((port, i) => (
+                <div
+                    key={port.id}
+                    onMouseUp={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        onPortConnectEnd(node.id, port.id);
+                    }}
+                    className="port absolute left-[-6px] w-3 h-3 rounded-full bg-green-500 cursor-crosshair"
+                    style={{ top: `${20 + i * 20}px` }}
+                />
+            ))}
+
+            {node.outputs?.map((port, i) => (
+                <div
+                    key={port.id}
+                    onMouseDown={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        onPortConnectStart(node.id, port.id);
+                    }}
+                    className="port absolute right-[-6px] w-3 h-3 rounded-full bg-blue-500 cursor-crosshair"
+                    style={{ top: `${20 + i * 20}px` }}
+                />
+            ))}
+            {/* <div
                 onMouseDown={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
@@ -86,7 +111,7 @@ export function Node<T>({
                     onPortConnectEnd(node.id, "input");
                 }}
                 className="port w-3 h-3 bg-green-500 rounded-full absolute left-[-6px] top-1/2 -translate-y-1/2 cursor-crosshair"
-            ></div>
+            ></div> */}
         </div>
     );
 }

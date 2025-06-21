@@ -13,33 +13,52 @@ export function buildGraphInstance<T>(
     nodes: NodeData<T>[],
     edges: Edge[]
 ): GraphInstance<T> {
-    const inputMap = new Map<string, Subject<T>>();
+    const inputMap = new Map<string, Subject<T>[]>();
     const streamMap = new Map<string, NodeSpec<T>>();
 
+    // 1. Create all node inputs (multiple per node if needed)
     for (const node of nodes) {
-        const input$ = createObservable<T>();
-        inputMap.set(node.id, input$);
-        const spec = createNodeStream<T>(node, input$);
+        const inputCount = getInputCount(node); // <-- helper you define
+        const inputs = Array.from({ length: inputCount }, () =>
+            createObservable<T>()
+        );
+        inputMap.set(node.id, inputs);
+    }
+
+    // 2. Create streams and attach them to the streamMap
+    for (const node of nodes) {
+        const inputs = inputMap.get(node.id)!;
+        const [input$, ...extraInputs] = inputs;
+        const spec = createNodeStream(node, input$, extraInputs);
         streamMap.set(node.id, spec);
     }
 
+    // 3. Wire up connections with optional input index
     const connect = (
         from?: NodeSpec<T>,
-        to?: Subject<T>
+        toList?: Subject<T>[],
+        toInputIndex: number = 0
     ): (() => void) | null => {
-        if (!from || !to) return null;
-        return connectGraphConnection(from.stream, to.emit, (x) => x);
+        if (!from || !toList || !toList[toInputIndex]) return null;
+        return connectGraphConnection(
+            from.stream,
+            toList[toInputIndex].emit,
+            (x) => x
+        );
     };
 
+    // 4. Create cleanups
     const cleanups = edges
-        .map(({ from, to }) => connect(streamMap.get(from), inputMap.get(to)))
-        .filter((x): x is () => void => !!x);
+        .map(({ from, to, toInputIndex }) =>
+            connect(streamMap.get(from), inputMap.get(to), toInputIndex)
+        )
+        .filter((fn): fn is () => void => !!fn);
 
-    // Force subscriptions for "Log" nodes
+    // 5. Subscribe to "Log" nodes to force tap execution
     for (const node of nodes) {
         const spec = streamMap.get(node.id);
         if (spec?.kind === "Log") {
-            spec.stream.subscribe(() => {});
+            spec.stream.subscribe(() => {}); // activate tap
         }
     }
 
@@ -52,4 +71,14 @@ export function buildGraphInstance<T>(
         },
         destroy: () => cleanups.forEach((fn) => fn()),
     };
+}
+
+function getInputCount<T>(node: NodeData<T>): number {
+    switch (node.type) {
+        case "Merge":
+            // case "Combine":
+            return 2;
+        default:
+            return 1;
+    }
 }
