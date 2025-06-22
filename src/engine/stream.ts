@@ -1,5 +1,6 @@
 import type { NodeData } from "../components/types";
 import {
+    createCombineNode,
     createDebugNode,
     createFilterNode,
     createMapNode,
@@ -44,6 +45,16 @@ export function createNodeStream<T>(
             return {
                 kind: "Merge",
                 stream: merge(input$, other$),
+            };
+        }
+        case "Combine": {
+            const other$ = extraInputs[0];
+            if (!other$)
+                throw new Error("Combine node requires a second input");
+            const combiner = config?.fn ?? ((a, b) => [a, b]);
+            return {
+                kind: "Combine",
+                stream: createCombineNode(input$, other$, combiner),
             };
         }
 

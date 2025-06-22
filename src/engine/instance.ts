@@ -76,7 +76,7 @@ export function buildGraphInstance<T>(
 function getInputCount<T>(node: NodeData<T>): number {
     switch (node.type) {
         case "Merge":
-            // case "Combine":
+        case "Combine":
             return 2;
         default:
             return 1;

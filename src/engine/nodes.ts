@@ -3,6 +3,7 @@ import {
     createObservable,
     filter,
     map,
+    merge,
     scan,
     tap,
     type Observable,
@@ -48,17 +49,7 @@ export function createMergeNode<T>(
     inputA$: Observable<T>,
     inputB$: Observable<T>
 ): Observable<T> {
-    return {
-        subscribe: (subscriber) => {
-            const unsubA = inputA$.subscribe(subscriber);
-            const unsubB = inputB$.subscribe(subscriber);
-
-            return () => {
-                unsubA();
-                unsubB();
-            };
-        },
-    };
+    return merge(inputA$, inputB$);
 }
 
 export function createCombineNode<A, B, R>(

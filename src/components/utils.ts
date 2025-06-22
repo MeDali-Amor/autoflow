@@ -59,4 +59,15 @@ export const nodeVariantsMap: Record<
         type: "Merge",
         config: undefined,
     },
+    Combine: {
+        inputs: [
+            { id: "in1", label: "in 1" },
+            { id: "in2", label: "in 2" },
+        ],
+        outputs: [{ id: "out", label: "out" }],
+        type: "Combine",
+        config: {
+            fn: (x, y) => x + y,
+        },
+    },
 };

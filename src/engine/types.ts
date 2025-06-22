@@ -1,6 +1,13 @@
 import type { Observable } from "./reactive";
 
-export type NodeKind = "Trigger" | "Map" | "Scan" | "Merge" | "Filter" | "Log";
+export type NodeKind =
+    | "Trigger"
+    | "Map"
+    | "Scan"
+    | "Merge"
+    | "Filter"
+    | "Log"
+    | "Combine";
 
 export type NodeSpec<T> = {
     kind: NodeKind;
