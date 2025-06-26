@@ -1,73 +1,71 @@
-import type { NodeKind } from "../engine/types";
-import type { Port } from "./types";
+import { combineLatest, createSubject, filter, map, merge, scan, tap } from "../engine/reactive";
+import { Log } from "./Log";
+import { TriggerHOC } from "./Trigger";
+import type { SomeNodeConfig } from "./types";
+
 
 export const nodeVariantsMap: Record<
-    NodeKind,
-    {
-        inputs: Port[];
-        outputs: Port[];
-        type: NodeKind;
-        config?: {
-            fn: (x: number, y: number) => unknown;
-            seed?: number;
-        };
-    }
+    string,
+    SomeNodeConfig
 > = {
-    Trigger: {
-        inputs: [] as Port[],
-        outputs: [{ id: "out", label: "out" }],
-        type: "Trigger",
-        config: undefined,
+    Trigger: c => {
+        const clicks$ = createSubject<void>()
+        return c({
+            inputTypes: [],
+            operator: () => map(clicks$, () => 1),
+            Component: TriggerHOC(clicks$),
+            type: 'number'
+        })
     },
-    Map: {
-        inputs: [{ id: "in", label: "in" }],
-        outputs: [{ id: "out", label: "out" }],
-        type: "Map",
-        config: {
-            fn: (x: number): number => x * 10,
-        },
+    STrigger: c => {
+        const clicks$ = createSubject<void>()
+        return c({
+            inputTypes: [],
+            operator: () => map(clicks$, () => "1"),
+            Component: TriggerHOC(clicks$),
+            type: 'string'
+        })
     },
-    Filter: {
-        inputs: [{ id: "in", label: "in" }],
-        outputs: [{ id: "out", label: "out" }],
-        type: "Filter",
-        config: {
-            fn: (x: number) => x > 40,
-        },
-    },
-    Scan: {
-        inputs: [{ id: "in", label: "in" }],
-        outputs: [{ id: "out", label: "out" }],
-        type: "Scan",
-        config: {
-            fn: (acc: number, x: number) => acc + x,
-            seed: 0,
-        },
-    },
-    Log: {
-        inputs: [{ id: "in", label: "in" }],
-        outputs: [{ id: "out", label: "out" }],
-        type: "Log",
-        config: undefined,
-    },
-    Merge: {
-        inputs: [
-            { id: "in1", label: "in 1" },
-            { id: "in2", label: "in 2" },
-        ],
-        outputs: [{ id: "out", label: "out" }],
-        type: "Merge",
-        config: undefined,
-    },
-    Combine: {
-        inputs: [
-            { id: "in1", label: "in 1" },
-            { id: "in2", label: "in 2" },
-        ],
-        outputs: [{ id: "out", label: "out" }],
-        type: "Combine",
-        config: {
-            fn: (x, y) => x + y,
-        },
-    },
+    Map: c => c({
+        inputTypes: ['number'] as const,
+        operator: (x) => map(x, (value) => value * 10),
+        type: 'number'
+    }),
+    Filter: c => c({
+        inputTypes: ['number'] as const,
+        operator: (x) => filter(x, (value) => value > 40),
+        type: 'number'
+    }),
+    Scan: c => c({
+        inputTypes: ['number'] as const,
+        operator: (x) => scan(x, (acc: number, x) => acc + x, 0),
+        type: 'number'
+    }),
+    Log: c => c({
+        inputTypes: ['number'] as const,
+        operator: (x) => tap(x, console.log),
+        type: 'number',
+        Component: Log
+    }),
+    SLog: c => c({
+        inputTypes: ['string'] as const,
+        operator: (x) => tap(x, console.log),
+        type: 'string',
+        Component: Log
+    }),
+    Merge: c => c({
+        inputTypes: ['number', 'number'] as const,
+        operator: (x, y) => merge(x, y),
+        type: 'number'
+    }),
+    Combine: c => c({
+        inputTypes: ['number', 'number'] as const,
+        operator: (x, y) => combineLatest([x, y], (x, y) => x + y),
+        type: 'number'
+    }),
+    SCombine: c => c({
+        inputTypes: ['string', 'number'] as const,
+        operator: (x, y) => combineLatest([x, y], (x, y) => x + y),
+        type: 'string',
+    }),
 };

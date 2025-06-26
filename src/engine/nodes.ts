@@ -1,6 +1,6 @@
 import {
     combineLatest,
-    createObservable,
+    createSubject,
     filter,
     map,
     merge,
@@ -10,7 +10,7 @@ import {
 } from "./reactive";
 
 export function createTrigger<T>() {
-    const stream = createObservable<T>();
+    const stream = createSubject<T>();
     return {
         stream,
         trigger: (val: T) => stream.emit(val),
