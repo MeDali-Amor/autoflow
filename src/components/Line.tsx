@@ -8,10 +8,10 @@ export const DrowPortLine = <In extends (keyof Types)[], Out extends keyof Types
 ) => {
     const from = useSyncExternalStore(observer => port.linkedTo.subscribe(observer), () => port.linkedTo.value);
     if (!from) return null;
-    return from(from => <DropDynLine width$={from.width$} from={from.position} to={to.position} toIndex={toIndex} />);
+    return from(from => <DropDynLine type={port.type} width$={from.width$} from={from.position} to={to.position} toIndex={toIndex} />);
 }
 
-export const DropDynLine = ({ from, hOffeset = 20, to, width$, toIndex, stroke = 'black', strokeDasharray }: { hOffeset?: number, width$?: BehaviorSubject<number>, strokeDasharray?: string, stroke?: string, from: BehaviorSubject<{ x: number, y: number }>, to: BehaviorSubject<{ x: number, y: number }>, toIndex: number }) => {
+export const DropDynLine = ({ type, from, hOffeset = 20, to, width$, toIndex, stroke = 'black', strokeDasharray }: { type: keyof Types, hOffeset?: number, width$?: BehaviorSubject<number>, strokeDasharray?: string, stroke?: string, from: BehaviorSubject<{ x: number, y: number }>, to: BehaviorSubject<{ x: number, y: number }>, toIndex: number }) => {
     const fromV = useSyncExternalStore(from.subscribe, () => from.value);
     const toV = useSyncExternalStore(to.subscribe, () => to.value);
     const width = useSyncExternalStore(width$?.subscribe ?? (() => () => { }), () => width$?.value ?? 0);
@@ -19,7 +19,7 @@ export const DropDynLine = ({ from, hOffeset = 20, to, width$, toIndex, stroke =
     const fromX = fromV.x + width;
     const fromY = fromV.y + hOffeset;
     const toX = toV.x;
-    const toY = toV.y + 20 + toIndex * 20;
+    const toY = toV.y + 20 + toIndex * 20;    
 
     return (<>
         <line
@@ -31,7 +31,7 @@ export const DropDynLine = ({ from, hOffeset = 20, to, width$, toIndex, stroke =
             strokeDasharray={strokeDasharray}
             strokeWidth={2}
         />
-        <circle fill={'currentColor'} cx={fromX} cy={fromY} r={6} className="text-green-500" />
+        <circle fill={'currentColor'} cx={fromX} cy={fromY} r={6} className={`text-${{ number: 'blue', string: 'red' }[type]}-500`} />
     </>);
 
 }

@@ -88,6 +88,7 @@ export function Node<In extends (keyof Types)[], Out extends keyof Types>({
             window.removeEventListener("mouseup", handleMouseUp);
         };
     }, [dragging, onMove]);
+
     return (
 
         <Layout
@@ -95,6 +96,7 @@ export function Node<In extends (keyof Types)[], Out extends keyof Types>({
             highlighted={highlighted}
             pos={node.position}
             ref={layoutRef}
+            type={node.config.type}
         >
             <label className="absolute top-[-20px] left-0 text-xs text-gray-500">
                 <input type="checkbox"
@@ -112,20 +114,27 @@ export function Node<In extends (keyof Types)[], Out extends keyof Types>({
 
             {Component && <Component node={node} />}
             {node.label}
-            {node.inputs?.map((port, i) => port(port => (
-                <div
-                    key={port.id}
-                    onMouseUp={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        onPortConnectStart(c => c(port), i);
-                    }}
-                    className={draggingIndex !== i && port.linkedTo.value === null 
-                        ? "port absolute left-[-6px] w-3 h-3 rounded-full bg-green-500 cursor-crosshair" 
-                        : "port absolute left-[-6px] w-3 h-3 rounded-full border-dashed border-1 border-green-500 cursor-crosshair"}
-                    style={{ top: `${14 + i * 20}px` }}
-                />
-            )))}
+            {node.inputs?.map((port, i) => port(port => {
+                const color = { number: 'blue', string: 'red' }[port.type]
+                return (
+                    <div
+                        key={port.id}
+                        onMouseUp={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            onPortConnectStart(c => c(port), i);
+                        }}
+                        className={'port absolute left-[-6px] w-3 h-3 rounded-full cursor-crosshair ' + (
+                            draggingIndex === i
+                                ? `border-dashed border-1 border-${color}-500`
+                                : port.linkedTo.value !== null
+                                    ? `border-1 border-${color}-500`
+                                    : `bg-${color}-500`)
+                        }
+                        style={{ top: `${14 + i * 20}px` }}
+                    />
+                )
+            }))}
 
             {/* <div
                 onMouseDown={(e) => {
@@ -147,16 +156,17 @@ export function Node<In extends (keyof Types)[], Out extends keyof Types>({
     );
 }
 
-const Layout = forwardRef(({ children, onMouseDown, pos, highlighted }: {
+const Layout = forwardRef(({ children, onMouseDown, pos, highlighted, type }: {
     highlighted: boolean, pos: BehaviorSubject<{ x: number, y: number }>,
-    children: ReactNode, onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void
+    children: ReactNode, onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void,
+    type: keyof Types
 }, ref: ForwardedRef<HTMLDivElement>) => {
     const node = useSyncExternalStore(pos.subscribe, () => pos.value)
     return (
         <div
             ref={ref}
             onMouseDown={onMouseDown}
-            className={"absolute px-4 py-2 bg-white border rounded shadow cursor-move select-none transition-all " + (highlighted ? "border-red-500" : "border-gray-300")}
+            className={"absolute px-4 py-2 border rounded shadow cursor-move select-none transition-bg border-" + ({ number: 'blue', string: "red" }[type]) + "-500 " + (highlighted ? "bg-red-200" : "bg-white")}
             style={{
                 left: `${node.x}px`,
                 top: `${node.y}px`,

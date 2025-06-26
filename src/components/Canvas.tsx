@@ -86,6 +86,7 @@ export function Canvas() {
                                     toIndex={connectingFrom.index}
                                     to={node.position}
                                     from={mousePos}
+                                    type={connectingFrom.port(p=>p.type)}
                                     stroke="gray"
                                     strokeDasharray="4 2"
                                 />
