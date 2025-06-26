@@ -38,7 +38,7 @@ export function Canvas() {
         if (connectingFrom) {
             connectingFrom.port(port => {
                 node(n => {
-                    port.linkedTo.emit(equal(n.config.type, port.type) ? node as SomeNodeData<typeof port.type> : null);
+                    port.linkedTo.emit(equal(n.config.type, port.type) && !connectingFrom.node(src=> equal(src, n)) ? node as SomeNodeData<typeof port.type> : null);
                     setConnectingFrom(null);
                 })
             })

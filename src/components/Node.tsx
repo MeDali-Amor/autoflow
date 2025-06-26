@@ -59,7 +59,6 @@ export function Node<In extends (keyof Types)[], Out extends keyof Types>({
         const target = e.target as HTMLElement;
         if (target.classList.contains("port")) return;
         e.preventDefault();
-        if (onPortConnectEnd()) return
 
         setDragging(true);
         offset.current = {
@@ -93,6 +92,11 @@ export function Node<In extends (keyof Types)[], Out extends keyof Types>({
 
         <Layout
             onMouseDown={handleMouseDown}
+            onMouseUp={e => {
+                if (onPortConnectEnd()) {
+                    e.stopPropagation();
+                }
+            }}
             highlighted={highlighted}
             pos={node.position}
             ref={layoutRef}
@@ -119,7 +123,7 @@ export function Node<In extends (keyof Types)[], Out extends keyof Types>({
                 return (
                     <div
                         key={port.id}
-                        onMouseUp={(e) => {
+                        onMouseDown={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
                             onPortConnectStart(c => c(port), i);
@@ -156,17 +160,19 @@ export function Node<In extends (keyof Types)[], Out extends keyof Types>({
     );
 }
 
-const Layout = forwardRef(({ children, onMouseDown, pos, highlighted, type }: {
+const Layout = forwardRef(({ children, onMouseDown, onMouseUp, pos, highlighted, type }: {
     highlighted: boolean, pos: BehaviorSubject<{ x: number, y: number }>,
-    children: ReactNode, onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void,
+    children: ReactNode, onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void, onMouseUp: (e: React.MouseEvent<HTMLDivElement>) => void,
     type: keyof Types
 }, ref: ForwardedRef<HTMLDivElement>) => {
     const node = useSyncExternalStore(pos.subscribe, () => pos.value)
+    const color = { number: 'blue', string: 'red' }[type];
     return (
         <div
             ref={ref}
             onMouseDown={onMouseDown}
-            className={"absolute px-4 py-2 border rounded shadow cursor-move select-none transition-bg border-" + ({ number: 'blue', string: "red" }[type]) + "-500 " + (highlighted ? "bg-red-200" : "bg-white")}
+            onMouseUp={onMouseUp}
+            className={`absolute px-4 py-2 border rounded shadow cursor-move select-none transition-bg border-${color}-500 ${highlighted ? `bg-${color}-200` : "bg-white"}`}
             style={{
                 left: `${node.x}px`,
                 top: `${node.y}px`,

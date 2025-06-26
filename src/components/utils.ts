@@ -54,7 +54,7 @@ export const nodeVariantsMap: Record<
         const messages$ = createSubject<string>()
         return c({
             inputTypes: ['string'] as const,
-            operator: (x) => tap(x, console.log),
+            operator: (x) => tap(x, messages$.emit),
             type: 'string',
             Component: LogHOC(messages$)
         })
