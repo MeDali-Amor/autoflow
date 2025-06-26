@@ -37,13 +37,14 @@ export function Canvas() {
     const handleConnectEnd = (node: SomeNodeData) => {
         if (connectingFrom) {
             connectingFrom.port(port => {
-                return node(n => {
+                node(n => {
                     port.linkedTo.emit(equal(n.config.type, port.type) ? node as SomeNodeData<typeof port.type> : null);
                     setConnectingFrom(null);
                 })
             })
-
+            return true
         }
+        return false
     };
 
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -95,8 +96,14 @@ export function Canvas() {
                     <Node
                         key={node.id}
                         node={node}
+                        draggingIndex={connectingFrom?.node(n => equal(n, node)) ? connectingFrom.index : null}
                         onMove={(x, y) => node.position.emit({ x, y })}
-                        onPortConnectStart={(port, index) => setConnectingFrom({ port, index, node: c => c(node) })}
+                        onPortConnectStart={(port, index) => {
+                            const {x, y} = node.position.value
+                            mousePos.emit({x, y: y + 20 + index * 20});
+                            port(port => port.linkedTo.emit(null));
+                            setConnectingFrom({ port, index, node: c => c(node) })
+                        }}
                         onPortConnectEnd={() => handleConnectEnd(c => c(node))}
                     />
                 ))}

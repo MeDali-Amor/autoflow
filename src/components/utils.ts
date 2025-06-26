@@ -1,5 +1,5 @@
 import { combineLatest, createSubject, filter, map, merge, scan, tap } from "../engine/reactive";
-import { Log } from "./Log";
+import { LogHOC } from "./Log";
 import { TriggerHOC } from "./Trigger";
 import type { SomeNodeConfig } from "./types";
 
@@ -41,18 +41,24 @@ export const nodeVariantsMap: Record<
         operator: (x) => scan(x, (acc: number, x) => acc + x, 0),
         type: 'number'
     }),
-    Log: c => c({
-        inputTypes: ['number'] as const,
-        operator: (x) => tap(x, console.log),
-        type: 'number',
-        Component: Log
-    }),
-    SLog: c => c({
-        inputTypes: ['string'] as const,
-        operator: (x) => tap(x, console.log),
-        type: 'string',
-        Component: Log
-    }),
+    Log: c => {
+        const messages$ = createSubject<number>()
+        return c({
+            inputTypes: ['number'] as const,
+            operator: (x) => tap(x, messages$.emit),
+            type: 'number',
+            Component: LogHOC(messages$)
+        })
+    },
+    SLog: c => {
+        const messages$ = createSubject<string>()
+        return c({
+            inputTypes: ['string'] as const,
+            operator: (x) => tap(x, console.log),
+            type: 'string',
+            Component: LogHOC(messages$)
+        })
+    },
     Merge: c => c({
         inputTypes: ['number', 'number'] as const,
         operator: (x, y) => merge(x, y),

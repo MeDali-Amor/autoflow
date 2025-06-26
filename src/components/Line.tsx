@@ -21,7 +21,7 @@ export const DropDynLine = ({ from, hOffeset = 20, to, width$, toIndex, stroke =
     const toX = toV.x;
     const toY = toV.y + 20 + toIndex * 20;
 
-    return (
+    return (<>
         <line
             x1={fromX}
             y1={fromY}
@@ -31,6 +31,7 @@ export const DropDynLine = ({ from, hOffeset = 20, to, width$, toIndex, stroke =
             strokeDasharray={strokeDasharray}
             strokeWidth={2}
         />
-    );
+        <circle fill={'currentColor'} cx={fromX} cy={fromY} r={6} className="text-green-500" />
+    </>);
 
 }
