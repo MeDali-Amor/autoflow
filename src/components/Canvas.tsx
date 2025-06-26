@@ -1,19 +1,18 @@
 "use client";
-import { useMemo, useState, useSyncExternalStore } from "react";
-import { v4 as uuid } from "uuid";
-import { createBehaviorSubject, NEVER, switchMap, type BehaviorSubject, type Observable } from "../engine/reactive";
+import { useMemo, useState } from "react";
+import { createBehaviorSubject } from "../engine/reactive";
+import { instanciate } from "./graph";
 import { Node } from "./Node";
 import { NodePalette } from "./NodePalette";
-import type { MapPort, MapTypeObservable, NodeData, Port, SomeNodeConfig, SomeNodeData, SomePort, Types } from "./types";
-
-export type { NodeData } from "./types";
+import type { SomeNodeConfig, SomeNodeData, SomePort } from "./types";
+import { DropDynLine, DrowPortLine } from "./Line";
 
 export function Canvas() {
     const [nodes, setNodes] = useState<SomeNodeData[]>([]);
     const [draggedTemplate, setDraggedTemplate] = useState<{ config: SomeNodeConfig, label: string } | null>(null);
     const [connectingFrom, setConnectingFrom] = useState<{ port: SomePort, index: number, node: SomeNodeData } | null>(null);
     const mousePos = useMemo(() => createBehaviorSubject<{ x: number, y: number }>({ x: 0, y: 0 }), []);
-    Object.assign(window, { nodes })
+
     const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
 
         e.preventDefault();
@@ -29,30 +28,7 @@ export function Canvas() {
         const y = e.clientY - canvasRect.top - estimatedNodeHeight / 2;
 
         draggedTemplate.config((config) => {
-            type In = typeof config.inputTypes;
-            const inputs = config.inputTypes.map((type) => {
-                const node = {
-                    id: uuid(),
-                    type,
-                    linkedTo: createBehaviorSubject<null | SomeNodeData<typeof type>>(null)
-                }
-                return c => c(node)
-            }) as MapPort<In>
-            const args = inputs.map(x => x((x): Observable<Types[keyof Types]> => switchMap(x.linkedTo, v => v ? v(v => v.next) : NEVER))) as MapTypeObservable<In>
-            const out = config.operator(...args)
-            const _next = createBehaviorSubject<Observable<Types[typeof config.type]>>(NEVER);
-            const node: NodeData<In, typeof config.type> = {
-                id: uuid(),
-                position: createBehaviorSubject({ x, y }),
-                config,
-                inputs: inputs as MapPort<In>,
-                width$: createBehaviorSubject(0),
-                label: draggedTemplate.label,
-                result: out,
-                _next,
-                next: switchMap(_next, v => v)
-            }
-
+            const node = instanciate(config, draggedTemplate.label, { x, y });
             setNodes((prev) => [...prev, c => c(node)])
         });
 
@@ -129,39 +105,6 @@ export function Canvas() {
     );
 }
 
-
-const DrowPortLine = <In extends (keyof Types)[], Out extends keyof Types, K extends keyof Types>(
-    { port, to, index: toIndex }: { port: Port<K>, to: NodeData<In, Out>, index: number }
-) => {
-    const from = useSyncExternalStore(observer => port.linkedTo.subscribe(observer), () => port.linkedTo.value);
-    if (!from) return null;
-    return from(from => <DropDynLine width$={from.width$} from={from.position} to={to.position} toIndex={toIndex} />);
-}
-
-const DropDynLine = ({ from, hOffeset = 20, to, width$, toIndex, stroke = 'black', strokeDasharray }: { hOffeset?: number, width$?: BehaviorSubject<number>, strokeDasharray?: string, stroke?: string, from: BehaviorSubject<{ x: number, y: number }>, to: BehaviorSubject<{ x: number, y: number }>, toIndex: number }) => {
-    const fromV = useSyncExternalStore(from.subscribe, () => from.value);
-    const toV = useSyncExternalStore(to.subscribe, () => to.value);
-    const width = useSyncExternalStore(width$?.subscribe ?? (() => () => { }), () => width$?.value ?? 0);
-    console.log(width);
-    
-    const fromX = fromV.x + width;
-    const fromY = fromV.y + hOffeset;
-    const toX = toV.x;
-    const toY = toV.y + 20 + toIndex * 20;
-
-    return (
-        <line
-            x1={fromX}
-            y1={fromY}
-            x2={toX}
-            y2={toY}
-            stroke={stroke}
-            strokeDasharray={strokeDasharray}
-            strokeWidth={2}
-        />
-    );
-
-}
 
 const equal = (
     n1: unknown,
