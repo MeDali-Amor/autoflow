@@ -7,8 +7,16 @@ export interface Observable<T> {
 export interface Subject<T> extends Observable<T> {
     emit: (value: T) => void;
 }
+export interface BehaviorSubject<T> extends Subject<T> {
+    get value(): T;
+}
 
-export function createObservable<T>(): Subject<T> {
+
+export const NEVER: Observable<never> = ({
+    subscribe: () => () => {}, // no-op unsubscribe
+});
+
+export function createSubject<T>(): Subject<T> {
     const subscribers = new Set<Subscriber<T>>();
 
     const subscribe = (subscriber: Subscriber<T>) => {
@@ -24,6 +32,10 @@ export function createObservable<T>(): Subject<T> {
 
     return { subscribe, emit };
 }
+export function createBehaviorSubject<T>(init: T): BehaviorSubject<T> {
+    const subject = createSubject<T>()
+    return { subscribe: subject.subscribe, emit: v => subject.emit(init = v), get value() { return init } };
+}
 
 export function map<A, B>(
     source: Observable<A>,
@@ -37,6 +49,35 @@ export function map<A, B>(
     };
 }
 
+export function switchMap<A, B>(
+    source: BehaviorSubject<A>,
+    fn: (value: A) => Observable<B>
+): Observable<B> {
+    return {
+        subscribe: (subscriber) => {
+            let innerUnsub = fn(source.value).subscribe(subscriber);
+
+            const outerUnsub = source.subscribe((value) => {
+                innerUnsub();
+                innerUnsub = fn(value).subscribe(subscriber);
+            });
+
+            return () => {
+                outerUnsub();
+                innerUnsub();
+            };
+        },
+    };
+}
+
+export function filter<T, X extends T>(
+    source: Observable<T>,
+    predicate: (value: T) => value is X
+): Observable<X>
+export function filter<T>(
+    source: Observable<T>,
+    predicate: (value: T) => boolean
+): Observable<T>
 export function filter<T>(
     source: Observable<T>,
     predicate: (value: T) => boolean
@@ -79,33 +120,34 @@ export function scan<A, B>(
         },
     };
 }
-export function combineLatest<A, B, R>(
-    inputA: Observable<A>,
-    inputB: Observable<B>,
-    combiner: (a: A, b: B) => R
+
+export type MapObservable<A extends unknown[]> = {
+    [X in keyof A]: Observable<A[X]>
+}
+
+
+export function combineLatest<A extends unknown[], R>(
+    inputs: MapObservable<A>,
+    combiner: (...a: A) => R
 ): Observable<R> {
     return {
         subscribe: (subscriber) => {
-            let aSet = false,
-                bSet = false;
-            let latestA: A;
-            let latestB: B;
-
-            const subA = inputA.subscribe((a) => {
-                latestA = a;
-                aSet = true;
-                if (bSet) subscriber(combiner(latestA, latestB));
-            });
-
-            const subB = inputB.subscribe((b) => {
-                latestB = b;
-                bSet = true;
-                if (aSet) subscriber(combiner(latestA, latestB));
-            });
+            const set = new Array(inputs.length).fill(false);
+            const latests = new Array(inputs.length) as A;
+            const subs = inputs.map((input, index) =>
+                input.subscribe((value) => {
+                    latests[index] = value;
+                    set[index] = true;
+                    if (set.every(Boolean)) {
+                        subscriber(combiner(...latests));
+                    }
+                })
+            );
 
             return () => {
-                subA();
-                subB();
+                for (const unsub of subs) {
+                    unsub();
+                }
             };
         },
     };
@@ -123,29 +165,29 @@ export function merge<A>(a$: Observable<A>, b$: Observable<A>): Observable<A> {
     };
 }
 
-// export type Operator<I, O> = (input: Observable<I>) => Observable<O>;
+export type Operator<I, O> = (input: Observable<I>) => Observable<O>;
 
-// export function pipe<T>(input: Observable<T>): Observable<T>;
-// export function pipe<T, A>(
-//     input: Observable<T>,
-//     op1: Operator<T, A>
-// ): Observable<A>;
-// export function pipe<T, A, B>(
-//     input: Observable<T>,
-//     op1: Operator<T, A>,
-//     op2: Operator<A, B>
-// ): Observable<B>;
-// export function pipe<T, A, B, C>(
-//     input: Observable<T>,
-//     op1: Operator<T, A>,
-//     op2: Operator<A, B>,
-//     op3: Operator<B, C>
-// ): Observable<C>;
-// // Add more overloads as needed
+export function pipe<T>(input: Observable<T>): Observable<T>;
+export function pipe<T, A>(
+    input: Observable<T>,
+    op1: Operator<T, A>
+): Observable<A>;
+export function pipe<T, A, B>(
+    input: Observable<T>,
+    op1: Operator<T, A>,
+    op2: Operator<A, B>
+): Observable<B>;
+export function pipe<T, A, B, C>(
+    input: Observable<T>,
+    op1: Operator<T, A>,
+    op2: Operator<A, B>,
+    op3: Operator<B, C>
+): Observable<C>;
+// Add more overloads as needed
 
-// export function pipe<T, R>(
-//     input: Observable<T>,
-//     ...fns: Array<Operator<any, any>>
-// ): Observable<R> {
-//     return fns.reduce((prev, fn) => fn(prev), input) as Observable<R>;
-// }
+export function pipe<T>(
+    input: Observable<T>,
+    ...fns: Array<Operator<T, T>>
+): Observable<T> {
+    return fns.reduce((prev, fn) => fn(prev), input);
+}

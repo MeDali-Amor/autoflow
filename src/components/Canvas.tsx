@@ -1,25 +1,22 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { v4 as uuid } from "uuid";
-import { buildGraphInstance, type GraphInstance } from "../engine/instance";
-import type { NodeKind } from "../engine/types";
+import { useMemo, useState } from "react";
+import { createBehaviorSubject } from "../engine/reactive";
+import { instanciate } from "./graph";
 import { Node } from "./Node";
 import { NodePalette } from "./NodePalette";
-import type { Edge, NodeData } from "./types";
-import { nodeVariantsMap } from "./utils";
+import type { SomeNodeConfig, SomeNodeData, SomePort } from "./types";
+import { DropDynLine, DrowPortLine } from "./Line";
 
 export function Canvas() {
-    const [nodes, setNodes] = useState<NodeData<number>[]>([]);
-    const [draggedType, setDraggedType] = useState<NodeKind | null>(null);
-    const [edges, setEdges] = useState<Edge[]>([]);
-    const [connectingFrom, setConnectingFrom] = useState<{
-        nodeId: string;
-        portId: string;
-    } | null>(null);
-    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+    const [nodes, setNodes] = useState<SomeNodeData[]>([]);
+    const [draggedTemplate, setDraggedTemplate] = useState<{ config: SomeNodeConfig, label: string } | null>(null);
+    const [connectingFrom, setConnectingFrom] = useState<{ port: SomePort, index: number, node: SomeNodeData } | null>(null);
+    const mousePos = useMemo(() => createBehaviorSubject<{ x: number, y: number }>({ x: 0, y: 0 }), []);
+
     const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+
         e.preventDefault();
-        if (!draggedType) return;
+        if (!draggedTemplate) return;
 
         const canvas = e.currentTarget;
         const canvasRect = canvas.getBoundingClientRect();
@@ -30,53 +27,29 @@ export function Canvas() {
         const x = e.clientX - canvasRect.left - estimatedNodeWidth / 2;
         const y = e.clientY - canvasRect.top - estimatedNodeHeight / 2;
 
-        setNodes((prev) => [
-            ...prev,
-            {
-                id: uuid(),
-                type: draggedType,
-                label: `${draggedType} Node`,
-                inputs: nodeVariantsMap[draggedType].inputs,
-                outputs: nodeVariantsMap[draggedType].outputs,
-                x,
-                y,
-                config: nodeVariantsMap[draggedType].config ?? undefined,
-            } as NodeData<number>,
-        ]);
+        draggedTemplate.config((config) => {
+            const node = instanciate(config, draggedTemplate.label, { x, y });
+            setNodes((prev) => [...prev, c => c(node)])
+        });
 
-        setDraggedType(null);
+        setDraggedTemplate(null);
     };
-    const handleConnectStart = (nodeId: string, portId: string) => {
-        setConnectingFrom({ nodeId, portId });
-    };
-
-    const handleConnectEnd = (nodeId: string, portId: string) => {
+    const handleConnectEnd = (node: SomeNodeData) => {
         if (connectingFrom) {
-            const targetNode = nodes.find((n) => n.id === nodeId);
-            const variant = nodeVariantsMap[targetNode?.type as NodeKind];
-
-            // 🧠 Find the index of the port you're connecting to
-            const toInputIndex = variant?.inputs.findIndex(
-                (port) => port.id === portId
-            );
-            setEdges((prev) => [
-                ...prev,
-                {
-                    id: `${connectingFrom.nodeId}:${connectingFrom.portId}->${nodeId}:${portId}`,
-                    from: connectingFrom.nodeId,
-                    fromPort: connectingFrom.portId,
-                    to: nodeId,
-                    toPort: portId,
-                    toInputIndex,
-                },
-            ]);
-            setConnectingFrom(null);
+            connectingFrom.port(port => {
+                node(n => {
+                    port.linkedTo.emit(equal(n.config.type, port.type) && !connectingFrom.node(src=> equal(src, n)) ? node as SomeNodeData<typeof port.type> : null);
+                    setConnectingFrom(null);
+                })
+            })
+            return true
         }
+        return false
     };
 
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         const rect = e.currentTarget.getBoundingClientRect();
-        setMousePos({
+        mousePos.emit({
             x: e.clientX - rect.left,
             y: e.clientY - rect.top,
         });
@@ -84,130 +57,64 @@ export function Canvas() {
     const handleMouseUpCanvas = () => {
         // Cancel if user clicks outside of a port
         if (connectingFrom) {
+            connectingFrom.port(port => {
+                port.linkedTo.emit(null);
+            });
             setConnectingFrom(null);
         }
     };
-    const graphRef = useRef<GraphInstance<number> | null>(null);
-
-    useEffect(() => {
-        graphRef.current?.destroy();
-        graphRef.current = buildGraphInstance(nodes, edges);
-        return () => graphRef.current?.destroy();
-    }, [nodes, edges]);
     return (
         <div className="flex w-full h-full">
-            <NodePalette onDragStart={(type) => setDraggedType(type)} />
+            <NodePalette onDragStart={(config, label) => setDraggedTemplate({ config, label })} />
             <div
                 className="relative flex-1 bg-gray-100 overflow-hidden"
                 onMouseUp={handleMouseUpCanvas}
                 // onClickCapture={(e) => e.stopPropagation()}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
-                onMouseMove={handleMouseMove}
+                onMouseMove={connectingFrom ? handleMouseMove : undefined}
             >
-                {/* Edge Wires SVG Layer */}
-                {/* {connectingFrom &&
-                    (() => {
-                        const fromNode = nodes.find(
-                            (n) => n.id === connectingFrom.nodeId
-                        );
-                        if (!fromNode) return null;
-
-                        const portIndex = fromNode.outputs?.findIndex(
-                            (p) => p.id === connectingFrom.portId
-                        );
-                        if (portIndex === undefined || portIndex < 0)
-                            return null;
-
-                        const fromX = fromNode.x + 120; // right side
-                        const fromY = fromNode.y + 20 + portIndex * 20;
-
-                        return (
-                            <line
-                                x1={fromX}
-                                y1={fromY}
-                                x2={mousePos.x}
-                                y2={mousePos.y}
-                                stroke="gray"
-                                strokeWidth={2}
-                                strokeDasharray="4 2"
-                            />
-                        );
-                    })()} */}
                 <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
-                    {edges.map((edge) => {
-                        const from = nodes.find((n) => n.id === edge.from);
-                        const to = nodes.find((n) => n.id === edge.to);
-                        if (!from || !to) return null;
-                        const fromIndex =
-                            from.outputs?.findIndex(
-                                (p) => p.id === edge.fromPort
-                            ) ?? 0;
-                        const toIndex =
-                            to.inputs?.findIndex((p) => p.id === edge.toPort) ??
-                            0;
-
-                        const fromX = from.x + 120;
-                        const fromY = from.y + 20 + fromIndex * 20;
-                        const toX = to.x;
-                        const toY = to.y + 20 + toIndex * 20;
-
-                        return (
-                            <line
-                                key={edge.id}
-                                x1={fromX}
-                                y1={fromY}
-                                x2={toX}
-                                y2={toY}
-                                stroke="black"
-                                strokeWidth={2}
-                            />
-                        );
-                    })}
+                    {nodes.map((n, i) => n(n => n.inputs.map((x, j) => x(x => <DrowPortLine key={`${i}-${j}`} port={x} to={n} index={j} />))))}
                     {/* Live preview */}
                     {connectingFrom &&
-                        (() => {
-                            const node = nodes.find(
-                                (n) => n.id === connectingFrom.nodeId
-                            );
-                            if (!node) return null;
-                            const portIndex =
-                                node.outputs?.findIndex(
-                                    (p) => p.id === connectingFrom.portId
-                                ) ?? 0;
-                            const x1 = node.x + 120;
-                            const y1 = node.y + 20 + portIndex * 20;
+                        connectingFrom.node((node) => {
 
                             return (
-                                <line
-                                    x1={x1}
-                                    y1={y1}
-                                    x2={mousePos.x}
-                                    y2={mousePos.y}
+                                <DropDynLine
+                                    hOffeset={0}
+                                    toIndex={connectingFrom.index}
+                                    to={node.position}
+                                    from={mousePos}
+                                    type={connectingFrom.port(p=>p.type)}
                                     stroke="gray"
-                                    strokeWidth={2}
                                     strokeDasharray="4 2"
                                 />
                             );
-                        })()}
+                        })}
                 </svg>
-                {nodes.map((node) => (
+                {nodes.map((node) => node(node =>
                     <Node
                         key={node.id}
                         node={node}
-                        trigger={() => graphRef.current?.trigger(node.id, 1)}
-                        onMove={(id, x, y) => {
-                            setNodes((prev) =>
-                                prev.map((n) =>
-                                    n.id === id ? { ...n, x, y } : n
-                                )
-                            );
+                        draggingIndex={connectingFrom?.node(n => equal(n, node)) ? connectingFrom.index : null}
+                        onMove={(x, y) => node.position.emit({ x, y })}
+                        onPortConnectStart={(port, index) => {
+                            const {x, y} = node.position.value
+                            mousePos.emit({x, y: y + 20 + index * 20});
+                            port(port => port.linkedTo.emit(null));
+                            setConnectingFrom({ port, index, node: c => c(node) })
                         }}
-                        onPortConnectStart={handleConnectStart}
-                        onPortConnectEnd={handleConnectEnd}
+                        onPortConnectEnd={() => handleConnectEnd(c => c(node))}
                     />
                 ))}
             </div>
         </div>
     );
 }
+
+
+const equal = (
+    n1: unknown,
+    n2: unknown,
+) => n1 === n2
