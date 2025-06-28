@@ -11,10 +11,9 @@ export interface BehaviorSubject<T> extends Subject<T> {
     get value(): T;
 }
 
-
-export const NEVER: Observable<never> = ({
+export const NEVER: Observable<never> = {
     subscribe: () => () => {}, // no-op unsubscribe
-});
+};
 
 export function createSubject<T>(): Subject<T> {
     const subscribers = new Set<Subscriber<T>>();
@@ -33,8 +32,18 @@ export function createSubject<T>(): Subject<T> {
     return { subscribe, emit };
 }
 export function createBehaviorSubject<T>(init: T): BehaviorSubject<T> {
-    const subject = createSubject<T>()
-    return { subscribe: subject.subscribe, emit: v => subject.emit(init = v), get value() { return init } };
+    const subject = createSubject<T>();
+    let current = init;
+    return {
+        subscribe: subject.subscribe,
+        emit: (v) => {
+            current = v;
+            subject.emit(v);
+        },
+        get value() {
+            return current;
+        },
+    };
 }
 
 export function map<A, B>(
@@ -73,11 +82,11 @@ export function switchMap<A, B>(
 export function filter<T, X extends T>(
     source: Observable<T>,
     predicate: (value: T) => value is X
-): Observable<X>
+): Observable<X>;
 export function filter<T>(
     source: Observable<T>,
     predicate: (value: T) => boolean
-): Observable<T>
+): Observable<T>;
 export function filter<T>(
     source: Observable<T>,
     predicate: (value: T) => boolean
@@ -122,9 +131,8 @@ export function scan<A, B>(
 }
 
 export type MapObservable<A extends unknown[]> = {
-    [X in keyof A]: Observable<A[X]>
-}
-
+    [X in keyof A]: Observable<A[X]>;
+};
 
 export function combineLatest<A extends unknown[], R>(
     inputs: MapObservable<A>,
